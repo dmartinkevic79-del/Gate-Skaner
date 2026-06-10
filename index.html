@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0a0f16">
-    <title>Sklad Scanner Elite v10.2</title>
+    <title>Sklad Scanner Elite v10.4</title>
     
     <script src="https://unpkg.com/html5-qrcode"></script>
     
@@ -70,7 +70,11 @@
         .btn-clear { background: rgba(255, 77, 77, 0.08); border: 1px solid rgba(255, 77, 77, 0.4); color: #ff8080; }
         .btn-copy { background: linear-gradient(135deg, #007799, #002b55); flex: 2; margin: 0; }
         .btn-stop { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); flex: 1; margin: 0; color: var(--text); }
-        .btn-torch { background: rgba(245, 158, 11, 0.15); border: 1px solid var(--warning); color: var(--warning); margin-bottom: 12px; display: none;}
+        
+        /* Панель управления камерой */
+        .scanner-controls { display: flex; gap: 12px; margin-bottom: 12px; width: 100%; }
+        .btn-torch { background: rgba(245, 158, 11, 0.15); border: 1px solid var(--warning); color: var(--warning); margin: 0; display: none; flex: 1; width: 100%; }
+        .btn-wake { background: rgba(0, 214, 255, 0.15); border: 1px solid var(--accent); color: var(--accent); margin: 0; flex: 1; width: 100%; }
 
         #reader-container { position: relative; border-radius: 24px; overflow: hidden; background: #000; border: 1px solid var(--glass-border); }
         #reader { width: 100%; min-height: 250px;}
@@ -122,7 +126,7 @@
 <div class="container">
     <div id="screenSetup">
         <div class="card">
-            <h2>Elite Scanner v10.2</h2>
+            <h2>Elite Scanner v10.4</h2>
             <label for="codesInput">Список штрихкодов для поиска</label>
             <textarea id="codesInput" placeholder="Вставьте ID кодов сюда..."></textarea>
             
@@ -132,12 +136,16 @@
             <button id="startBtn" class="btn-start">Включить сканер</button>
             <button id="clearBtn" class="btn-clear">Очистить память</button>
         </div>
-        <div id="setupStatus" style="font-size: 14px; text-align: center; font-weight: 600; padding: 0 10px;" aria-live="polite"></div>
+        <div id="setupStatus" style="color: var(--danger); font-size: 13px; text-align: center; font-weight: 600;" aria-live="polite"></div>
         <div class="attribution">Designed & Developed by D. Martinkevich for Sofrino KBT</div>
     </div>
 
     <div id="screenScanner">
-        <button id="torchBtn" class="btn-torch">🔦 Фонарик</button>
+        <div class="scanner-controls">
+            <button id="torchBtn" class="btn-torch">🔦 Фонарик</button>
+            <button id="wakeBtn" class="btn-wake">🔄 Разбудить камеру</button>
+        </div>
+        
         <div id="reader-container">
             <div id="reader"></div>
             <div id="laser" class="laser"></div>
@@ -173,7 +181,7 @@
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    // --- INIT & EVENTS ---
+    // --- ИНИЦИАЛИЗАЦИЯ И СОБЫТИЯ ---
     document.addEventListener('DOMContentLoaded', async () => {
         loadStateSafely();
         bindEvents();
@@ -184,11 +192,12 @@
         document.getElementById('startBtn').addEventListener('click', startApp);
         document.getElementById('clearBtn').addEventListener('click', clearAppState);
         document.getElementById('torchBtn').addEventListener('click', toggleTorch);
+        document.getElementById('wakeBtn').addEventListener('click', wakeCamera);
         document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
         document.getElementById('stopBtn').addEventListener('click', stopApp);
     }
 
-    // --- CODES & STORAGE ---
+    // --- НОРМАЛИЗАЦИЯ И ХРАНИЛИЩЕ ---
     function normalizeCode(code) {
         return code.replace(/[\s:;,\-]+/g, '').toUpperCase();
     }
@@ -226,32 +235,14 @@
         }
     }
 
-    // --- CAMERA ENGINE ---
+    // --- ИНИЦИАЛИЗАЦИЯ КАМЕР ---
     async function loadCameras() {
         const select = document.getElementById('cameraSelect');
         const setupStatus = document.getElementById('setupStatus');
-        
         try {
-            setupStatus.style.color = "var(--accent)";
-            setupStatus.innerText = "Проверка доступа к линзам...";
-
-            // Из-за политики Android сначала пробуем сделать микро-запрос потока,
-            // чтобы вызвать системное диалоговое окно (если оно еще не одобрено)
-            let devices = [];
-            try {
-                devices = await Html5Qrcode.getCameras();
-            } catch(err) {}
-
-            // Если список пуст или нет названий камер, запрашиваем разрешение жестко
-            if (!devices || devices.length === 0 || !devices[0].label) {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                // Сразу глушим поток, чтобы освободить камеру
-                stream.getTracks().forEach(track => track.stop());
-                // Запрашиваем список повторно — теперь он точно вернет массив с именами линз
-                devices = await Html5Qrcode.getCameras();
-            }
-
+            const devices = await Html5Qrcode.getCameras();
             select.innerHTML = '';
+            
             if (devices && devices.length) {
                 const lastId = localStorage.getItem('sklad_lastCameraId');
                 devices.forEach((camera, index) => {
@@ -263,22 +254,12 @@
                 });
                 setupStatus.innerText = "";
             } else {
-                throw new Error("Камеры физически не найдены");
+                select.innerHTML = '<option value="default">Авто-выбор (Задняя камера)</option>';
+                setupStatus.innerText = "";
             }
         } catch (e) {
-            select.innerHTML = '<option value="">Нет доступа к камерам</option>';
-            setupStatus.style.color = "var(--danger)";
-            setupStatus.innerHTML = `
-                <div style="background: rgba(255,77,77,0.1); padding: 14px; border-radius: 16px; border: 1px solid var(--danger); margin-top: 10px;">
-                    <p style="margin: 0 0 10px 0; font-size: 13px;">Браузер заблокировал доступ к камере.</p>
-                    <button id="grantPermBtn" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; margin: 0; padding: 12px; font-size: 14px; border-radius: 12px; font-weight: bold; width: auto; display: inline-block;">🔑 Разрешить камеру</button>
-                </div>
-            `;
-            
-            // Навешиваем событие клика на кнопку принудительного разрешения
-            document.getElementById('grantPermBtn').addEventListener('click', async () => {
-                await loadCameras();
-            });
+            select.innerHTML = '<option value="default">Авто-выбор (Задняя камера)</option>';
+            setupStatus.innerText = "";
         }
     }
 
@@ -289,16 +270,12 @@
         targetCodesArray = input.split(/\r?\n/).map(s => normalizeCode(s)).filter(s => s !== "");
             
         if (!targetCodesArray.length) {
-            alert("Список штрихкодов пуст!");
+            document.getElementById('setupStatus').innerText = "Список штрихкодов пуст!";
             return;
         }
 
         const select = document.getElementById('cameraSelect');
         const cameraId = select.value;
-        if (!cameraId) {
-            alert("Рабочая линза не выбрана или недоступна!");
-            return;
-        }
 
         localStorage.setItem('sklad_lastCameraId', cameraId);
         localStorage.setItem('sklad_codesInput', input);
@@ -306,7 +283,7 @@
         document.getElementById('screenSetup').style.display = 'none';
         document.getElementById('screenScanner').style.display = 'flex';
         document.getElementById('laser').style.display = 'block';
-        document.getElementById('activeCamName').innerText = "Выбрана: " + select.options[select.selectedIndex].text;
+        document.getElementById('activeCamName').innerText = "Запуск объектива...";
         
         updateUI();
         setStatus("loading", "Подключение к линзе...");
@@ -333,9 +310,18 @@
             ]
         };
 
+        const cameraConfig = cameraId === "default" ? { facingMode: "environment" } : cameraId;
+
         try {
-            await html5QrCode.start(cameraId, config, onScanSuccess);
+            await html5QrCode.start(cameraConfig, config, onScanSuccess);
             setStatus("success", "Сканер готов к работе");
+            
+            if (cameraId === "default") {
+                await loadCameras();
+            }
+
+            const select = document.getElementById('cameraSelect');
+            document.getElementById('activeCamName').innerText = "Выбрана: " + select.options[select.selectedIndex].text;
             
             try {
                 const cap = html5QrCode.getRunningTrackCapabilities();
@@ -349,8 +335,17 @@
             }, 2000);
             
         } catch (err) {
-            setStatus("error", "Сбой линзы: " + err);
+            setStatus("error", "Сбой линзы. Нажмите «Разбудить камеру» или сбросьте блок Chrome. Ошибка: " + err);
+            document.getElementById('activeCamName').innerText = "Ошибка доступа";
         }
+    }
+
+    // Функция ручного пробуждения/перезапуска камеры без выхода на главный экран
+    async function wakeCamera() {
+        isTorchOn = false;
+        setStatus("loading", "Пробуждение линзы...");
+        const currentId = localStorage.getItem('sklad_lastCameraId') || 'default';
+        await initScanner(currentId);
     }
 
     async function stopApp() {
@@ -368,7 +363,7 @@
         await loadCameras();
     }
 
-    // --- SCANNER LOGIC ---
+    // --- ЛОГИКА СКАНИРОВАНИЯ ---
     function onScanSuccess(decodedText) {
         const raw = normalizeCode(decodedText);
         const now = Date.now();
@@ -381,6 +376,7 @@
 
         if (foundMatch) {
             if (!foundCodes.has(foundMatch)) {
+                // Новое совпадение
                 foundCodes.add(foundMatch);
                 if (foundLog.length > 100) foundLog.pop();
                 foundLog.unshift({ id: foundMatch, time: new Date().toLocaleTimeString('ru-RU') });
@@ -389,10 +385,12 @@
                 setStatus("success", "КОД НАЙДЕН: " + foundMatch);
                 triggerFeedback('success');
             } else {
+                // Запрос проверки (Дубликат) — теперь выдаёт УСПЕШНЫЙ ЗВУК
                 setStatus("warning", "ДУБЛИКАТ: " + foundMatch);
-                triggerFeedback('warning');
+                triggerFeedback('warning'); 
             }
         } else {
+            // Код вообще мимо списка
             setStatus("error", "НЕ ИЗ СПИСКА: " + raw);
             triggerFeedback('fail');
         }
@@ -412,11 +410,16 @@
 
     function triggerFeedback(type) {
         const overlay = document.getElementById('flashOverlay');
-        if (type === 'success') {
-            overlay.style.backgroundColor = 'rgba(0, 255, 157, 0.3)';
+        
+        if (type === 'success' || type === 'warning') {
+            // Для нового кода вспышка зелёная, для дубликата — жёлтая. Но звук ОДИНАКОВО РАДОСТНЫЙ!
+            overlay.style.backgroundColor = (type === 'success') ? 'rgba(0, 255, 157, 0.3)' : 'rgba(245, 158, 11, 0.3)';
+            
+            // Приятный двойной писк успеха
             playTone(900, 'sine', 0.1, 0.2); 
             setTimeout(() => playTone(1200, 'sine', 0.15, 0.2), 80);
         } else {
+            // Жёсткий баг-сигнал для кодов не из списка (красная вспышка)
             overlay.style.backgroundColor = 'rgba(255, 77, 77, 0.3)';
             playTone(180, 'triangle', 0.3, 0.3);
         }
@@ -436,6 +439,7 @@
         osc.start(); osc.stop(audioCtx.currentTime + dur);
     }
 
+    // --- UI ОБНОВЛЕНИЕ ---
     function updateUI() {
         document.getElementById('countFound').innerText = foundCodes.size;
         document.getElementById('countLeft').innerText = Math.max(0, targetCodesArray.length - foundCodes.size);
@@ -454,3 +458,4 @@
 </script>
 </body>
 </html>
+

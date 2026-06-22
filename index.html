@@ -84,21 +84,28 @@
             border: none; font-size: 18px; font-weight: 600; outline: none;
         }
 
+        /* --- Кнопки управления камерой --- */
         .controls-group {
-            display: flex; gap: 10px; margin-top: 5px; width: 100%;
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+            width: 100%;
         }
         
         .btn-secondary {
-            flex: 1; background: rgba(255, 255, 255, 0.08);
+            flex: 1;
+            background: rgba(255, 255, 255, 0.08);
             color: #8e8e93; border: none; padding: 12px 8px;
             border-radius: 12px; font-size: 13px; font-weight: 500;
             cursor: pointer; transition: 0.2s;
-            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
         .btn-secondary:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
 
         .btn-send {
-            background: var(--accent-green); color: black; border: none; padding: 18px;
+            background: var(--accent-green);
+            color: black; border: none; padding: 18px;
             border-radius: 16px; font-size: 17px; font-weight: 700;
             width: 100%; cursor: pointer; margin-top: 15px;
         }
@@ -110,13 +117,16 @@
         }
 
         .history-item {
-            background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; margin-bottom: 8px;
-            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(255,255,255,0.05);
+            padding: 12px; border-radius: 12px; margin-bottom: 8px;
+            display: flex; justify-content: space-between;
+            align-items: center;
             border: 1px solid rgba(255,255,255,0.05);
         }
 
         .credits {
-            margin-top: auto; padding: 20px 0; text-align: center; font-size: 12px; color: #8e8e93; font-weight: bold;
+            margin-top: auto; padding: 20px 0;
+            text-align: center; font-size: 12px; color: #8e8e93; font-weight: bold;
         }
     </style>
 </head>
@@ -141,25 +151,29 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M15 2H9a2 2 0 0 0-2 2v2h10V4a2 2 0 0 0-2-2z"/>
                 <path d="M7 6h10v4a3 3 0 0 1-3 3H10a3 3 0 0 1-3-3V6z"/>
-                <line x1="10" y1="17" x2="14" y2="17"/><line x1="10" y1="21" x2="14" y2="21"/><circle cx="12" cy="11" r="1"/>
+                <line x1="10" y1="17" x2="14" y2="17"/>
+                <line x1="10" y1="21" x2="14" y2="21"/>
+                <circle cx="12" cy="11" r="1"/>
             </svg>
         </div>
         <div id="reader"></div>
     </div>
 
-    <div id="status-display">Готов (Движок v7.0)</div>
+    <div id="status-display">Запуск камеры...</div>
 
     <div class="controls-group">
         <button id="restart-cam-btn" class="btn-secondary" onclick="handleCameraRestart()">🔄 Оживить</button>
         <button id="switch-cam-btn" class="btn-secondary" onclick="switchCamera()" style="display: none;">📷 Линза</button>
     </div>
 
-    <button class="btn-send" id="send-btn" onclick="sendData()">Отправить данные (0)</button>
+    <button class="btn-send" id="send-btn" onclick="sendData()">
+        Отправить данные (0)
+    </button>
 
     <div id="history-box" style="margin-top: 20px; flex-grow: 1;"></div>
 
-    <div class="credits" id="version-tag">
-        © 2026 Developed by D. Martinkevich<br><span style="color: #30d158;">for Sofrino KBT (v7.0 DECODER)</span>
+    <div class="credits">
+        © 2026 Developed by D. Martinkevich<br><span style="color: #30d158;">for Sofrino KBT (v9.0 ПРЯМОЙ ДЕШИФРАТОР)</span>
     </div>
 
 <script>
@@ -177,21 +191,27 @@
     
     const html5QrCode = new Html5Qrcode("reader");
     let scannerInstance = html5QrCode;
+
+    // Глобальные переменные для переключения линз
     let availableRearCameras = [];
     let currentCameraIndex = 0;
 
-    // --- БРОНЕБОЙНЫЙ ДЕШИФРАТОР v7.0 ---
+    // =========================================================================
+    // --- НАШ ВСТРОЕННЫЙ ДВИЖОК ПЕРЕВОДА БУКВ В ЦИФРЫ (СКЛАДСКОЙ) ---
+    // =========================================================================
     function decodeBarcodeToNumeric(text) {
         let clean = text.trim();
+
+        // 1. Срезаем технический мусор сканера (звездочки или префиксы)
         if (clean.includes('-*-')) clean = clean.split('-*-')[1];
         else if (clean.startsWith('*')) clean = clean.substring(1);
         clean = clean.replace(/\s+/g, '');
 
-        // 1. Если это чистые цифры — пропускаем мгновенно
+        // 2. Если это уже чистые цифры — возвращаем мгновенно, ничего не считая
         if (/^\d+$/.test(clean)) return clean;
 
-        // 2. Исправление кириллицы
-        const rusMap = {
+        // 3. Полная QWERTY-карта исправления раскладки (если отсканировали на русском)
+        const rusToLat = {
             'Й':'Q','Ц':'W','У':'E','К':'R','Е':'T','Н':'Y','Г':'U','Ш':'I','Щ':'O','З':'P','Х':'[','Ъ':']',
             'Ф':'A','Ы':'S','В':'D','А':'F','П':'G','Р':'H','О':'J','Л':'K','Д':'L','Ж':';','Э':'\'',
             'Я':'Z','Ч':'X','С':'C','М':'V','И':'B','Т':'N','Ь':'M','Б':',','Ю':'.',
@@ -200,49 +220,57 @@
             'я':'z','ч':'x','с':'c','м':'v','и':'b','т':'n','ь':'m','б':',','ю':'.'
         };
 
-        let latinStr = "";
+        let latStr = "";
         for (let i = 0; i < clean.length; i++) {
-            let char = clean.charAt(i);
-            latinStr += rusMap[char] || char;
+            let ch = clean.charAt(i);
+            latStr += rusToLat[ch] || ch;
         }
 
-        latinStr = latinStr.replace(/[^A-Za-z0-9+/]/g, '');
+        // Оставляем только допустимые символы Base64
+        latStr = latStr.replace(/[^A-Za-z0-9+/]/g, '');
 
-        // 3. ЛЕЧИМ АНОМАЛИЮ 7 СИМВОЛА (например /Wxj+hp -> /Wxj+hp=)
-        if (latinStr.length === 7) {
-            latinStr += "=";
+        // 4. Добиваем строку знаками "=" до кратности 4 (лечит огрызки кодов WB)
+        while (latStr.length % 4 !== 0) {
+            latStr += "=";
         }
 
-        if (latinStr.length < 8) return text;
+        if (latStr.length < 8) return text; // Если код слишком короткий — отдаем как есть
 
         try {
-            let binaryString = atob(latinStr);
-            if (binaryString.length < 5) return text;
+            let bin = atob(latStr);
+            if (bin.length < 5) return text;
 
-            // BigInt-вычисление 5 байт без потерь точности
-            let numericId = 0n;
+            // Вычисляем 40-битное число из первых 5 байт (через BigInt)
+            let num = 0n;
             for (let i = 0; i < 5; i++) {
-                numericId = (numericId << 8n) | BigInt(binaryString.charCodeAt(i));
+                num = (num << 8n) | BigInt(bin.charCodeAt(i));
             }
-            return numericId.toString();
+            return num.toString();
         } catch (e) {
-            return text; // Если пакет битый, отдаем оригинальный текст
+            return text; // Если Base64 поврежден — вернем исходный текст
         }
     }
+    // =========================================================================
 
-    function saveToLocal() { localStorage.setItem('scanner_routes', JSON.stringify(routesStore)); }
+    function saveToLocal() {
+        localStorage.setItem('scanner_routes', JSON.stringify(routesStore));
+    }
+
     function initAudio() {
         if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
         if (audioContext.state === 'suspended') audioContext.resume();
     }
 
     document.getElementById('route-select').addEventListener('change', () => {
-        initAudio(); lastScannedCode = null; updateInterface();
+        initAudio();
+        lastScannedCode = null;
+        updateInterface();
     });
 
     function playBeep() {
         if (!audioContext) return;
-        const osc = audioContext.createOscillator(); const gain = audioContext.createGain();
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
         osc.frequency.setValueAtTime(1000, audioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
         osc.connect(gain); gain.connect(audioContext.destination);
@@ -259,8 +287,11 @@
         try {
             const state = !isTorchOn;
             await scannerInstance.applyVideoConstraints({ advanced: [{ torch: state }] });
-            isTorchOn = state; document.getElementById('torch-toggle').classList.toggle('active', isTorchOn);
-        } catch (err) {}
+            isTorchOn = state;
+            document.getElementById('torch-toggle').classList.toggle('active', isTorchOn);
+        } catch (err) {
+            console.error("Фонарик не поддерживается", err);
+        }
     }
 
     function onScanSuccess(decodedText) {
@@ -268,10 +299,13 @@
 
         let cleanId = decodedText.trim();
         if (cleanId.includes(':')) {
-            const parts = cleanId.split(':'); cleanId = parts.length > 2 ? parts[2] : cleanId;
+            const parts = cleanId.split(':');
+            cleanId = parts.length > 2 ? parts[2] : cleanId;
         }
 
-        // --- ТОЧКА ПЕРЕХВАТА ---
+        // =====================================================================
+        // ---> ТОЧКА ПЕРЕХВАТА: ПРЕВРАЩАЕМ БУКВЫ В ЦИФРЫ <---
+        // =====================================================================
         cleanId = decodeBarcodeToNumeric(cleanId);
 
         const currentRoute = document.getElementById('route-select').value;
@@ -281,18 +315,29 @@
 
         if (routesStore[currentRoute].some(item => item.id === cleanId)) {
             if (lastScannedCode !== cleanId) {
-                screenFlash('red'); status.textContent = 'ДУБЛИКАТ'; status.style.color = 'var(--accent-red)';
+                screenFlash('red');
+                status.textContent = 'ДУБЛИКАТ';
+                status.style.color = 'var(--accent-red)';
                 lastScannedCode = cleanId;
             }
             return;
         }
 
-        lastScannedCode = cleanId; playBeep(); screenFlash('green');
-        status.textContent = cleanId; status.style.color = 'var(--accent-green)';
+        lastScannedCode = cleanId;
+        playBeep();
+        screenFlash('green');
+        status.textContent = cleanId;
+        status.style.color = 'var(--accent-green)';
         if (navigator.vibrate) navigator.vibrate(50);
 
-        routesStore[currentRoute].unshift({ id: cleanId, time: new Date().toLocaleTimeString('ru-RU') });
-        saveToLocal(); updateInterface();
+        const now = new Date();
+        routesStore[currentRoute].unshift({ 
+            id: cleanId, 
+            time: now.toLocaleTimeString('ru-RU') 
+        });
+        
+        saveToLocal();
+        updateInterface();
     }
 
     function updateInterface() {
@@ -301,7 +346,9 @@
         const list = routesStore[route] || [];
         
         let htmlString = list.length > 0 ? '<h4 style="color:#8e8e93; margin:0 0 10px 5px">ИСТОРИЯ</h4>' : '';
-        htmlString += list.map(item => `<div class="history-item"><b>${item.id}</b><span style="color:#8e8e93;">${item.time}</span></div>`).join('');
+        htmlString += list.map(item => 
+            `<div class="history-item"><b>${item.id}</b><span style="color:#8e8e93; font-variant-numeric: tabular-nums;">${item.time}</span></div>`
+        ).join('');
         container.innerHTML = htmlString;
 
         const btn = document.getElementById('send-btn');
@@ -310,26 +357,48 @@
     }
 
     async function sendData() {
-        const route = document.getElementById('route-select').value; const status = document.getElementById('status-display');
+        const route = document.getElementById('route-select').value;
+        const status = document.getElementById('status-display');
         const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyR4YcCDh-iRMbO1VCsvzuc76qh-LxdR-GxBFRz0SEdbcJr1JOwklabRoC2Vif3-whGhg/exec';
 
-        if (html5QrCode && html5QrCode.isScanning) try { html5QrCode.pause(); } catch(e) {}
-        isSending = true; updateInterface(); status.textContent = 'Отправка...'; status.style.color = 'var(--accent-blue)';
+        if (html5QrCode && html5QrCode.isScanning) {
+            try { html5QrCode.pause(); } catch(e) {}
+        }
+
+        isSending = true;
+        updateInterface();
+        status.textContent = 'Отправка...';
+        status.style.color = 'var(--accent-blue)';
 
         try {
             const response = await fetch(WEB_APP_URL, {
-                method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ route: route, data: routesStore[route] })
             });
             if (!response.ok) throw new Error('Ошибка сервера');
 
-            routesStore[route] = []; saveToLocal(); lastScannedCode = null;
-            status.textContent = 'Успешно отправлено!'; status.style.color = 'var(--accent-green)';
-            setTimeout(() => { status.textContent = 'Готов (Движок v7.0)'; status.style.color = 'var(--accent-green)'; }, 2500);
+            routesStore[route] = [];
+            saveToLocal();
+            lastScannedCode = null;
+
+            status.textContent = 'Успешно отправлено!';
+            status.style.color = 'var(--accent-green)';
+
+            setTimeout(() => {
+                status.textContent = 'Готов к работе';
+                status.style.color = 'var(--accent-green)';
+            }, 2500);
+
         } catch (err) {
-            alert('Ошибка сети! Данные сохранены локально.'); status.textContent = 'Ошибка!'; status.style.color = 'var(--accent-red)';
+            alert('Ошибка сети! Данные сохранены локально.');
+            status.textContent = 'Ошибка!';
+            status.style.color = 'var(--accent-red)';
         } finally {
-            isSending = false; if (html5QrCode) try { html5QrCode.resume(); } catch(e) {}
+            isSending = false;
+            if (html5QrCode) {
+                try { html5QrCode.resume(); } catch(e) {}
+            }
             updateInterface();
         }
     }
@@ -337,49 +406,111 @@
     function initOptimalCamera() {
         Html5Qrcode.getCameras().then(cameras => {
             if (cameras && cameras.length > 0) {
-                availableRearCameras = cameras.filter(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('rear') || c.label.toLowerCase().includes('environment') || c.label.toLowerCase().includes('0,'));
+                availableRearCameras = cameras.filter(camera => 
+                    camera.label.toLowerCase().includes('back') || 
+                    camera.label.toLowerCase().includes('rear') ||
+                    camera.label.toLowerCase().includes('environment') ||
+                    camera.label.toLowerCase().includes('камера') ||
+                    camera.label.toLowerCase().includes('0,')
+                );
+                
                 if (availableRearCameras.length === 0) availableRearCameras = cameras;
-                if (availableRearCameras.length > 1) document.getElementById('switch-cam-btn').style.display = 'block';
-                currentCameraIndex = availableRearCameras.length - 1; startScannerWithCurrentCamera();
-            } else startFallback();
-        }).catch(err => startFallback());
+
+                if (availableRearCameras.length > 1) {
+                    document.getElementById('switch-cam-btn').style.display = 'block';
+                }
+
+                currentCameraIndex = availableRearCameras.length - 1;
+                startScannerWithCurrentCamera();
+            } else {
+                startFallback();
+            }
+        }).catch(err => {
+            console.error("Ошибка перебора линз:", err);
+            startFallback();
+        });
     }
 
     function startScannerWithCurrentCamera() {
-        html5QrCode.start(availableRearCameras[currentCameraIndex].id, { fps: 25, qrbox: { width: 280, height: 280 }, aspectRatio: 1.7777777778 }, onScanSuccess)
-            .then(() => { document.getElementById('status-display').textContent = 'Готов (Движок v7.0)'; document.getElementById('status-display').style.color = 'var(--accent-green)'; checkTorch(); })
-            .catch(err => startFallback());
+        const cameraId = availableRearCameras[currentCameraIndex].id;
+        const config = { 
+            fps: 25, 
+            qrbox: { width: 280, height: 280 },
+            aspectRatio: 1.7777777778
+        };
+
+        html5QrCode.start(cameraId, config, onScanSuccess)
+            .then(() => {
+                document.getElementById('status-display').textContent = 'Готов к работе';
+                document.getElementById('status-display').style.color = 'var(--accent-green)';
+                checkTorch(html5QrCode);
+            }).catch(err => {
+                console.error("Ошибка старта по ID линзы, включаем резерв:", err);
+                startFallback();
+            });
     }
 
     async function switchCamera() {
-        const btn = document.getElementById('switch-cam-btn'); btn.textContent = '🔄 Линза...';
-        if (html5QrCode && html5QrCode.isScanning) try { await html5QrCode.stop(); } catch(e) {}
-        currentCameraIndex = (currentCameraIndex + 1) % availableRearCameras.length; startScannerWithCurrentCamera();
+        const btn = document.getElementById('switch-cam-btn');
+        btn.textContent = '🔄 Линза...';
+        
+        if (html5QrCode && html5QrCode.isScanning) {
+            try { await html5QrCode.stop(); } catch(e) {}
+        }
+        
+        currentCameraIndex = (currentCameraIndex + 1) % availableRearCameras.length;
+        startScannerWithCurrentCamera();
+        
         btn.textContent = '📷 Линза';
     }
 
     async function handleCameraRestart() {
-        const btn = document.getElementById('restart-cam-btn'); btn.textContent = 'Запуск...';
-        if (html5QrCode && html5QrCode.isScanning) try { await html5QrCode.stop(); } catch(e) {}
-        availableRearCameras.length > 0 ? startScannerWithCurrentCamera() : startFallback();
+        const btn = document.getElementById('restart-cam-btn');
+        btn.textContent = 'Запуск...';
+        
+        if (html5QrCode && html5QrCode.isScanning) {
+            try { await html5QrCode.stop(); } catch(e) {}
+        }
+        
+        if (availableRearCameras.length > 0) {
+            startScannerWithCurrentCamera();
+        } else {
+            startFallback();
+        }
+        
         btn.textContent = '🔄 Оживить';
     }
 
     function startFallback() {
-        html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 250 } }, onScanSuccess)
-            .then(() => { document.getElementById('status-display').textContent = 'Готов (Движок v7.0)'; document.getElementById('status-display').style.color = 'var(--accent-green)'; checkTorch(); })
-            .catch(err => alert("Камера недоступна"));
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            { fps: 20, qrbox: { width: 250, height: 250 } }, 
+            onScanSuccess
+        ).then(() => {
+            document.getElementById('status-display').textContent = 'Готов к работе';
+            document.getElementById('status-display').style.color = 'var(--accent-green)';
+            checkTorch(html5QrCode);
+        }).catch(err => {
+            alert("Камера недоступна. Проверьте разрешения в браузере.");
+            document.getElementById('status-display').textContent = 'Камера недоступна';
+            document.getElementById('status-display').style.color = 'var(--accent-red)';
+        });
     }
 
-    function checkTorch() {
+    function checkTorch(scanner) {
         const videoElement = document.querySelector('#reader video');
         if (videoElement && videoElement.srcObject) {
             const track = videoElement.srcObject.getVideoTracks()[0];
-            document.getElementById('torch-toggle').style.display = track && track.getCapabilities && track.getCapabilities().torch ? 'flex' : 'none';
+            if (track && track.getCapabilities && track.getCapabilities().torch) {
+                document.getElementById('torch-toggle').style.display = 'flex';
+            } else {
+                document.getElementById('torch-toggle').style.display = 'none';
+            }
         }
     }
 
-    initOptimalCamera(); updateInterface();
+    initOptimalCamera();
+    updateInterface();
 </script>
 </body>
 </html>
